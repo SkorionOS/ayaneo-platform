@@ -785,6 +785,28 @@ static void ayaneo_led_mc_scale_color(u8 *color, u8 max_value)
         }
 }
 
+static bool is_legacy_device(void)
+{
+	switch (model) {
+		case air:
+		case air_pro:
+		case air_1s:
+		case air_1s_limited:
+		case geek:
+		case geek_1s:
+		case ayaneo_2:
+		case ayaneo_2s:
+		case air_plus_mendo:
+		case kun:
+			return true;
+		case air_plus:
+		case slide:
+			return false;
+		default:
+			return true;  // Default to legacy for unknown devices
+	}
+}
+
 static void ayaneo_led_mc_brightness_apply(u8 color[9][3])
 {
 	u8 zones[4] = {3, 6, 9, 12};
@@ -885,16 +907,24 @@ int ayaneo_led_mc_writer(void *pv)
                 }
                 read_unlock(&ayaneo_led_mc_update_lock);
 
-                if (count)
-                {
-                        ayaneo_led_mc_brightness_apply(color);
+		if (count)
+		{
+			ayaneo_led_mc_brightness_apply(color);
 
-                        write_lock(&ayaneo_led_mc_update_lock);
-                        ayaneo_led_mc_update_required -= count;
-                        write_unlock(&ayaneo_led_mc_update_lock);
-                }
-                else
-                        usleep_range(AYANEO_LED_WRITER_DELAY_RANGE_US);
+			write_lock(&ayaneo_led_mc_update_lock);
+			ayaneo_led_mc_update_required -= count;
+			write_unlock(&ayaneo_led_mc_update_lock);
+			
+			// Add delay for legacy devices to prevent button input blocking
+			// Legacy devices use slower EC register access which can interfere with button polling
+			// 为 legacy 设备添加延迟以防止按键输入阻塞
+			// Legacy 设备使用较慢的 EC 寄存器访问，可能干扰按键轮询
+			if (is_legacy_device()) {
+				usleep_range(1000, 2000);  // 1-2ms delay
+			}
+		}
+		else
+			usleep_range(AYANEO_LED_WRITER_DELAY_RANGE_US);
         }
 
         pr_info("Writer thread stopped.\n");
