@@ -513,6 +513,12 @@ static void ayaneo_led_mc_legacy_set(u8 group, u8 pos, u8 brightness)
 
         if (!unlock_global_acpi_lock())
                 return;
+        
+        // Match Python driver behavior: add 1ms delay after each set
+        // This gives keyboard polling enough time between EC accesses
+        // 匹配 Python 驱动行为：每次 set 后添加 1ms 延迟
+        // 这为键盘轮询在 EC 访问之间提供足够时间
+        usleep_range(1000, 1000);
 }
 
 static void ayaneo_led_mc_legacy_release(void)
@@ -785,28 +791,6 @@ static void ayaneo_led_mc_scale_color(u8 *color, u8 max_value)
         }
 }
 
-static bool is_legacy_device(void)
-{
-	switch (model) {
-		case air:
-		case air_pro:
-		case air_1s:
-		case air_1s_limited:
-		case geek:
-		case geek_1s:
-		case ayaneo_2:
-		case ayaneo_2s:
-		case air_plus_mendo:
-		case kun:
-			return true;
-		case air_plus:
-		case slide:
-			return false;
-		default:
-			return true;  // Default to legacy for unknown devices
-	}
-}
-
 static void ayaneo_led_mc_brightness_apply(u8 color[9][3])
 {
 	u8 zones[4] = {3, 6, 9, 12};
@@ -914,14 +898,6 @@ int ayaneo_led_mc_writer(void *pv)
 			write_lock(&ayaneo_led_mc_update_lock);
 			ayaneo_led_mc_update_required -= count;
 			write_unlock(&ayaneo_led_mc_update_lock);
-			
-			// Add delay for legacy devices to prevent button input blocking
-			// Legacy devices use slower EC register access which can interfere with button polling
-			// 为 legacy 设备添加延迟以防止按键输入阻塞
-			// Legacy 设备使用较慢的 EC 寄存器访问，可能干扰按键轮询
-			if (is_legacy_device()) {
-				usleep_range(1000, 2000);  // 1-2ms delay
-			}
 		}
 		else
 			usleep_range(AYANEO_LED_WRITER_DELAY_RANGE_US);
